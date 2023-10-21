@@ -1,4 +1,4 @@
-package torrent_client
+package torrentfile
 
 import (
 	"bytes"
