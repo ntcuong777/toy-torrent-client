@@ -6,7 +6,13 @@ import (
 	"fmt"
 	"github.com/jackpal/bencode-go"
 	"io"
+	"math/rand"
+	"os"
+	"torrent_client/p2p"
 )
+
+// Port to listen on
+const Port uint16 = 6881
 
 type TorrentFile struct {
 	Announce     string
@@ -81,4 +87,40 @@ func (bto *bencodeTorrent) toTorrentFile() (TorrentFile, error) {
 		Name:         bto.Info.Name,
 	}
 	return t, nil
+}
+
+// DownloadToFile downloads a torrent and writes it to a file
+func (t *TorrentFile) DownloadToFile(path string) error {
+	var generatedPeerId [20]byte
+	randObj := rand.New(rand.NewSource(123))
+	_, err := randObj.Read(generatedPeerId[:])
+	if err != nil {
+		return err
+	}
+
+	peers, err := t.requestPeers(generatedPeerId, Port)
+	torrent := p2p.Torrent{
+		Peers:         peers,
+		MachinePeerID: generatedPeerId,
+		InfoHash:      t.InfoHash,
+		PieceHashes:   t.PieceHashes,
+		PiecesLength:  t.PiecesLength,
+		Length:        t.Length,
+		Name:          t.Name,
+	}
+	buff, err := torrent.Download()
+	if err != nil {
+		return err
+	}
+
+	outFile, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer outFile.Close()
+	_, err = outFile.Write(buff)
+	if err != nil {
+		return err
+	}
+	return nil
 }

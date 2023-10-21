@@ -33,13 +33,13 @@ func (h *Handshake) Serialize() []byte {
 
 // Read reads the handshake response from a reader, the structure is the same as the initial handshake request
 func Read(r io.Reader) (*Handshake, error) {
-	lengBuf := make([]byte, 1)
-	_, err := io.ReadFull(r, lengBuf)
+	lengthBuf := make([]byte, 1)
+	_, err := io.ReadFull(r, lengthBuf)
 	if err != nil {
 		return nil, err
 	}
 
-	pstrlen := int(lengBuf[0])
+	pstrlen := int(lengthBuf[0])
 	if pstrlen == 0 {
 		return nil, fmt.Errorf("pstrlen cannot be 0")
 	}
@@ -51,7 +51,7 @@ func Read(r io.Reader) (*Handshake, error) {
 	}
 
 	var infoHash, peer [20]byte
-	pstr := string(handshakeBuf[0:pstrlen])
+	pstr := string(handshakeBuf[:pstrlen])
 	// omit the 8-bit reserved byte
 	copy(infoHash[:], handshakeBuf[pstrlen+8:pstrlen+8+20])
 	copy(peer[:], handshakeBuf[pstrlen+8+20:])

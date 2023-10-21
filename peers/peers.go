@@ -12,7 +12,7 @@ type Peer struct {
 	Port uint16
 }
 
-func Unmarshall(peersBin []byte) ([]Peer, error) {
+func Unmarshal(peersBin []byte) ([]Peer, error) {
 	const peerSize = 6 // 4 bytes for IP, 2 bytes for port
 	numPeers := len(peersBin) / peerSize
 	if len(peersBin)%peerSize != 0 {

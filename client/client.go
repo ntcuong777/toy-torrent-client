@@ -58,7 +58,9 @@ func completeHandshake(conn net.Conn, peerId, infoHash [20]byte) (*handshake.Han
 	return res, nil
 }
 
-func New(peer peers.Peer, peerId [20]byte, infoHash [20]byte) (*Client, error) {
+// NewClient connects with a peer, completes a handshake, and receives a handshake
+// returns an err if any of those fail.
+func NewClient(peer peers.Peer, peerId, infoHash [20]byte) (*Client, error) {
 	conn, err := net.DialTimeout("tcp", peer.String(), 3*time.Second)
 	if err != nil {
 		return nil, err
@@ -85,4 +87,41 @@ func New(peer peers.Peer, peerId [20]byte, infoHash [20]byte) (*Client, error) {
 		PeerId:   peerId,
 	}
 	return &client, nil
+}
+
+// Read reads and consumes a message from the connection
+func (c *Client) Read() (*message.Message, error) {
+	msg, err := message.Read(c.Conn)
+	if err != nil {
+		return nil, err
+	}
+	return msg, err
+}
+
+func (c *Client) SendRequest(index, begin, length int) error {
+	msg := message.CreateRequestMsg(index, begin, length)
+	_, err := c.Conn.Write(msg.Serialize())
+	return err
+}
+
+func (c *Client) SendUnchoke() error {
+	msg := message.Message{
+		ID: message.MsgUnchoke,
+	}
+	_, err := c.Conn.Write(msg.Serialize())
+	return err
+}
+
+func (c *Client) SendInterested() error {
+	msg := message.Message{
+		ID: message.MsgInterested,
+	}
+	_, err := c.Conn.Write(msg.Serialize())
+	return err
+}
+
+func (c *Client) SendHave(index int) error {
+	msg := message.CreateHaveMsg(index)
+	_, err := c.Conn.Write(msg.Serialize())
+	return err
 }

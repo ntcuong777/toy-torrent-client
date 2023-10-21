@@ -2,6 +2,7 @@ package message
 
 import (
 	"encoding/binary"
+	"fmt"
 	"io"
 )
 
@@ -33,6 +34,27 @@ type Message struct {
 	Payload []byte
 }
 
+func CreateRequestMsg(index, begin, length int) *Message {
+	payload := make([]byte, 12)
+	binary.BigEndian.PutUint32(payload[:4], uint32(index))
+	binary.BigEndian.PutUint32(payload[4:8], uint32(begin))
+	binary.BigEndian.PutUint32(payload[8:], uint32(length))
+	return &Message{
+		ID:      MsgRequest,
+		Payload: payload,
+	}
+}
+
+func CreateHaveMsg(index int) *Message {
+	payload := make([]byte, 4)
+	binary.BigEndian.PutUint32(payload, uint32(index))
+	return &Message{
+		ID:      MsgHave,
+		Payload: payload,
+	}
+}
+
+// Read parses a message from a stream. Returns `nil` on keep-alive message
 func Read(r io.Reader) (*Message, error) {
 	lengthBuff := make([]byte, 4)
 	_, err := io.ReadFull(r, lengthBuff)
@@ -60,7 +82,7 @@ func Read(r io.Reader) (*Message, error) {
 }
 
 // Serialize serializes the message into a buffer
-func Serialize(m *Message) []byte {
+func (m *Message) Serialize() []byte {
 	if m == nil {
 		return make([]byte, 4) // keepalive message
 	}
@@ -70,4 +92,38 @@ func Serialize(m *Message) []byte {
 	buff[4] = byte(m.ID)
 	copy(buff[5:], m.Payload)
 	return buff
+}
+
+func ParseHave(msg *Message) (int, error) {
+	if msg.ID != MsgHave {
+		return 0, fmt.Errorf("expected have message, got %d", msg.ID)
+	}
+	if len(msg.Payload) != 4 {
+		return 0, fmt.Errorf("expected payload length 4, got %d", len(msg.Payload))
+	}
+	index := binary.BigEndian.Uint32(msg.Payload)
+	return int(index), nil
+}
+
+func ParsePiece(index int, buf []byte, msg *Message) (int, error) {
+	if msg.ID != MsgPiece {
+		return 0, fmt.Errorf("expected piece message, got %d", msg.ID)
+	}
+	if len(msg.Payload) < 8 {
+		return 0, fmt.Errorf("expected payload length > 8, got %d", len(msg.Payload))
+	}
+	parsedIndex := int(binary.BigEndian.Uint32(msg.Payload[:4]))
+	if index != parsedIndex {
+		return 0, fmt.Errorf("expected index %d, got %d", index, parsedIndex)
+	}
+	begin := int(binary.BigEndian.Uint32(msg.Payload[4:8]))
+	if begin >= len(buf) {
+		return 0, fmt.Errorf("expected begin offset < %d, got %d", len(buf), begin)
+	}
+	payload := msg.Payload[8:]
+	if begin+len(payload) > len(buf) {
+		return 0, fmt.Errorf("data too long, expected begin + payload length < %d, got %d", len(buf), begin+len(payload))
+	}
+	copy(buf[begin:], payload)
+	return len(payload), nil
 }
