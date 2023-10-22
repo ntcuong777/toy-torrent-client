@@ -5,7 +5,6 @@ import (
 	"crypto/sha1"
 	"fmt"
 	"github.com/jackpal/bencode-go"
-	"io"
 	"math/rand"
 	"os"
 	"torrent_client/p2p"
@@ -15,12 +14,12 @@ import (
 const Port uint16 = 6881
 
 type TorrentFile struct {
-	Announce     string
-	InfoHash     [20]byte
-	PieceHashes  [][20]byte
-	PiecesLength int
-	Length       int
-	Name         string
+	Announce    string
+	InfoHash    [20]byte
+	PieceHashes [][20]byte
+	PieceLength int
+	Length      int
+	Name        string
 }
 
 type bencodeInfo struct {
@@ -35,14 +34,21 @@ type bencodeTorrent struct {
 	Info     bencodeInfo `bencode:"info"`
 }
 
-// Open opens a torrentfile file and returns a bencodeTorrent struct
-func Open(r io.Reader) (*bencodeTorrent, error) {
-	bto := bencodeTorrent{}
-	err := bencode.Unmarshal(r, &bto)
+// Open opens a torrentfile file and returns a Torrent struct
+func Open(path string) (TorrentFile, error) {
+	file, err := os.Open(path)
 	if err != nil {
-		return nil, err
+		return TorrentFile{}, err
 	}
-	return &bto, nil
+	defer file.Close()
+
+	bto := bencodeTorrent{}
+	err = bencode.Unmarshal(file, &bto)
+	if err != nil {
+		return TorrentFile{}, err
+	}
+
+	return bto.toTorrentFile()
 }
 
 func (i *bencodeInfo) hash() ([20]byte, error) {
@@ -79,12 +85,12 @@ func (bto *bencodeTorrent) toTorrentFile() (TorrentFile, error) {
 		return TorrentFile{}, err
 	}
 	t := TorrentFile{
-		Announce:     bto.Announce,
-		InfoHash:     infoHash,
-		PieceHashes:  pieceHashes,
-		PiecesLength: bto.Info.PieceLength,
-		Length:       bto.Info.Length,
-		Name:         bto.Info.Name,
+		Announce:    bto.Announce,
+		InfoHash:    infoHash,
+		PieceHashes: pieceHashes,
+		PieceLength: bto.Info.PieceLength,
+		Length:      bto.Info.Length,
+		Name:        bto.Info.Name,
 	}
 	return t, nil
 }
@@ -104,7 +110,7 @@ func (t *TorrentFile) DownloadToFile(path string) error {
 		MachinePeerID: generatedPeerId,
 		InfoHash:      t.InfoHash,
 		PieceHashes:   t.PieceHashes,
-		PiecesLength:  t.PiecesLength,
+		PiecesLength:  t.PieceLength,
 		Length:        t.Length,
 		Name:          t.Name,
 	}
@@ -118,6 +124,7 @@ func (t *TorrentFile) DownloadToFile(path string) error {
 		return err
 	}
 	defer outFile.Close()
+
 	_, err = outFile.Write(buff)
 	if err != nil {
 		return err
